@@ -10,7 +10,7 @@ class Face_Recog:
     def __init__(self, gtk_mode):
         self.gtk_mode = gtk_mode
         self.known_faces = self.load_known_faces()
-
+        #print(self.known_faces['encoding'])
         # Starting main loop
         self.face_rec_loop()
 
@@ -20,6 +20,7 @@ class Face_Recog:
         face_locations = []
         face_encodings = []
         face_names = []
+        f_index = []
         face_buffer = []
         face_i = 0
         process_this_frame = True
@@ -30,8 +31,9 @@ class Face_Recog:
             if process_this_frame:
                 face_locations = frec.face_locations(small_frame)
                 face_encodings = frec.face_encodings(small_frame, face_locations)
-                self.find_faces(face_locations, frame)
-                if get_to_know_mode:
+                self.find_faces(face_locations, face_encodings, frame)
+
+                if self.gtk_mode:
                     if len(face_buffer) == 0 and np.shape(face_encodings)[0] == 1:
                         face_buffer.append(face_encodings[0])
                     if len(face_buffer) > 0 and len(face_encodings) == 1:
@@ -39,12 +41,14 @@ class Face_Recog:
                             face_buffer.append(face_encodings[0])
                             face_i += 1
                     if len(face_buffer) == 5:
-                        add_face(face_buffer)
+                        self.add_face(face_buffer)
                         del face_buffer[:]
                         face_i = 0
 
-            # Show frame
-            cv2.imshow('Video', frame)
+
+
+                # Show frame
+                cv2.imshow('Video', frame)
             # Limit processing
             process_this_frame = not process_this_frame
             # To exit readloop
@@ -62,11 +66,15 @@ class Face_Recog:
     def add_face(self, faces):
         new_face = (faces[0] + faces[1] + faces[2] + faces[3] + faces[4]) / 5
         cv2.imshow('face', new_face)
-        name = input('What is the name of the person?\n-> ')
-        save_face_to_file({'name': name,'encoding': new_face.tolist()})
+        obj = {}
+        obj['name'] = input('What is the name of the person?\n-> ')
+        obj['encoding'] = new_face.tolist()
+        self.known_faces.append(obj)
+        print(self.known_faces)
+        self.save_face_to_file(self.known_faces)
 
-    def find_faces(self, face_locations, frame):
-        for (top, right, bottom, left) in face_locations:
+    def find_faces(self, face_locations, face_encodings, frame):
+        for (top, right, bottom, left), face_enc in zip(face_locations, face_encodings):
             # Scale back up face locations since the frame we detected in was scaled to 1/4 size
             top *= 4
             right *= 4
@@ -76,8 +84,15 @@ class Face_Recog:
             cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
             # Draw a label with a name below the face
             cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
-            #font = cv2.FONT_HERSHEY_DUPLEX
-            #cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+            font = cv2.FONT_HERSHEY_DUPLEX
+            if len(self.known_faces) > 0:
+                for known in self.known_faces:
+                    if frec.compare_faces([known['encoding']], face_enc)[0]:
+                        cv2.putText(frame, known['name'], (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+                    else:
+                        cv2.putText(frame, 'Uknown', (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+            else:
+                cv2.putText(frame, 'Uknown', (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
 
     def close_release_quit(self):
         video_capture.release()
@@ -98,5 +113,5 @@ class Face_Recog:
             font = cv2.FONT_HERSHEY_DUPLEX
             cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
     '''
-GTK_MODE = True
+GTK_MODE = False
 Face_Recog(GTK_MODE)
