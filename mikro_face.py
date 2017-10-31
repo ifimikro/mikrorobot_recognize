@@ -10,6 +10,8 @@ class Face_Recog:
     def __init__(self, gtk_mode):
         self.gtk_mode = gtk_mode
         self.known_faces = self.load_known_faces()
+        self.face_buffer = []
+        self.face_i = 0
         #print(self.known_faces['encoding'])
         # Starting main loop
         self.face_rec_loop()
@@ -21,8 +23,6 @@ class Face_Recog:
         face_encodings = []
         face_names = []
         f_index = []
-        face_buffer = []
-        face_i = 0
         process_this_frame = True
         while True:
             ret, frame = video_capture.read()
@@ -33,20 +33,6 @@ class Face_Recog:
                 face_encodings = frec.face_encodings(small_frame, face_locations)
                 self.find_faces(face_locations, face_encodings, frame)
 
-                if self.gtk_mode:
-                    if len(face_buffer) == 0 and np.shape(face_encodings)[0] == 1:
-                        face_buffer.append(face_encodings[0])
-                    if len(face_buffer) > 0 and len(face_encodings) == 1:
-                        if frec.compare_faces([face_buffer[face_i]], face_encodings[0]):
-                            face_buffer.append(face_encodings[0])
-                            face_i += 1
-                    if len(face_buffer) == 5:
-                        self.add_face(face_buffer)
-                        del face_buffer[:]
-                        face_i = 0
-
-
-
                 # Show frame
                 cv2.imshow('Video', frame)
             # Limit processing
@@ -54,14 +40,6 @@ class Face_Recog:
             # To exit readloop
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 return
-
-    def load_known_faces(self):
-        with open('faces.json') as json_data:
-            return json.load(json_data)
-
-    def save_face_to_file(self, json_face):
-        with open("faces.json", "w") as outfile:
-            json.dump(json_face, outfile, indent=4)
 
     def add_face(self, faces):
         new_face = (faces[0] + faces[1] + faces[2] + faces[3] + faces[4]) / 5
@@ -91,27 +69,36 @@ class Face_Recog:
                         cv2.putText(frame, known['name'], (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
                     else:
                         cv2.putText(frame, 'Uknown', (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+                        #self.get_to_know(face_enc)
             else:
                 cv2.putText(frame, 'Uknown', (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+                self.get_to_know(face_enc)
+
+    def get_to_know(self, face_encoding):
+        #if len(self.face_buffer) == 0 and np.shape(face_encoding)[0] == 1:
+        #    self.face_buffer.append(face_encoding[0])
+        if len(self.face_buffer) == 0:
+            self.face_buffer.append(face_encoding)
+        if len(self.face_buffer) > 0:
+            if frec.compare_faces([self.face_buffer[self.face_i]], face_encoding):
+                self.face_buffer.append(face_encoding)
+                self.face_i += 1
+        if len(self.face_buffer) == 5:
+            self.add_face(self.face_buffer)
+            del self.face_buffer[:]
+            self.face_i = 0
+
+    def load_known_faces(self):
+        with open('faces.json') as json_data:
+            return json.load(json_data)
+
+    def save_face_to_file(self, json_face):
+        with open("faces.json", "w") as outfile:
+            json.dump(json_face, outfile, indent=4)
 
     def close_release_quit(self):
         video_capture.release()
         cv2.destroyAllWindows()
 
-    '''
-    def find_known_faces(self, face_locations, frame):
-        for (top, right, bottom, left) in face_locations:
-            # Scale back up face locations since the frame we detected in was scaled to 1/4 size
-            top *= 4
-            right *= 4
-            bottom *= 4
-            left *= 4
-            # Draw a box around the face
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-            # Draw a label with a name below the face
-            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
-            font = cv2.FONT_HERSHEY_DUPLEX
-            cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
-    '''
 GTK_MODE = False
 Face_Recog(GTK_MODE)
